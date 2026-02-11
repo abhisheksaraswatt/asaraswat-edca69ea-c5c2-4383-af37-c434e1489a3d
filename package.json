@@ -1,0 +1,13 @@
+{
+  "name": "@asaraswat-edca69ea-c5c2-4383-af37-c434e1489a3d/source",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {},
+  "private": true,
+  "dependencies": {},
+  "devDependencies": {
+    "@nx/js": "22.5.0",
+    "@nx/workspace": "22.5.0",
+    "nx": "22.5.0"
+  }
+}
