@@ -1,0 +1,70 @@
+{
+  "hash": "8b128756",
+  "configHash": "85a0009c",
+  "lockfileHash": "f88f42cf",
+  "browserHash": "9e1c7ac0",
+  "optimized": {
+    "@angular/common": {
+      "src": "../../../../../../node_modules/@angular/common/fesm2022/common.mjs",
+      "file": "@angular_common.js",
+      "fileHash": "2cd463b6",
+      "needsInterop": false
+    },
+    "@angular/common/http": {
+      "src": "../../../../../../node_modules/@angular/common/fesm2022/http.mjs",
+      "file": "@angular_common_http.js",
+      "fileHash": "09b1ecc7",
+      "needsInterop": false
+    },
+    "@angular/core": {
+      "src": "../../../../../../node_modules/@angular/core/fesm2022/core.mjs",
+      "file": "@angular_core.js",
+      "fileHash": "9cbfb166",
+      "needsInterop": false
+    },
+    "@angular/forms": {
+      "src": "../../../../../../node_modules/@angular/forms/fesm2022/forms.mjs",
+      "file": "@angular_forms.js",
+      "fileHash": "ae3b6cbc",
+      "needsInterop": false
+    },
+    "@angular/platform-browser": {
+      "src": "../../../../../../node_modules/@angular/platform-browser/fesm2022/platform-browser.mjs",
+      "file": "@angular_platform-browser.js",
+      "fileHash": "c176c5b4",
+      "needsInterop": false
+    },
+    "@angular/router": {
+      "src": "../../../../../../node_modules/@angular/router/fesm2022/router.mjs",
+      "file": "@angular_router.js",
+      "fileHash": "dc902b2c",
+      "needsInterop": false
+    },
+    "rxjs": {
+      "src": "../../../../../../node_modules/rxjs/dist/esm5/index.js",
+      "file": "rxjs.js",
+      "fileHash": "3a20f64e",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-NBLL3HEX": {
+      "file": "chunk-NBLL3HEX.js"
+    },
+    "chunk-EYD5ZCBS": {
+      "file": "chunk-EYD5ZCBS.js"
+    },
+    "chunk-GPZ37DV6": {
+      "file": "chunk-GPZ37DV6.js"
+    },
+    "chunk-WFE5Z5KL": {
+      "file": "chunk-WFE5Z5KL.js"
+    },
+    "chunk-HKF6JQMY": {
+      "file": "chunk-HKF6JQMY.js"
+    },
+    "chunk-LYM2MRBZ": {
+      "file": "chunk-LYM2MRBZ.js"
+    }
+  }
+}

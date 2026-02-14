@@ -1,0 +1,11 @@
+{
+  "name": "@asaraswat-edca69ea-c5c2-4383-af37-c434e1489a3d/data",
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "dependencies": {
+    "tslib": "^2.3.0"
+  }
+}

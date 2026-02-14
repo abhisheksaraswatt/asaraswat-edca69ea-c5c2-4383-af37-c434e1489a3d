@@ -1,0 +1,62 @@
+<div>
+  <div><b>Org:</b> {{ orgId ?? '(none)' }}</div>
+  <div><b>Role:</b> {{ role }}</div>
+
+  <button (click)="doLogout()">Logout</button>
+
+  <h3>Create Task</h3>
+
+  <input placeholder="Task title" [(ngModel)]="title" [disabled]="!canWrite" />
+  <br />
+  <input placeholder="Description (optional)" [(ngModel)]="description" [disabled]="!canWrite" />
+  <br />
+
+  <select [(ngModel)]="category" [disabled]="!canWrite">
+    <option value="">Category (optional)</option>
+    <option value="WORK">WORK</option>
+    <option value="PERSONAL">PERSONAL</option>
+    <option value="STUDY">STUDY</option>
+    <option value="OTHER">OTHER</option>
+  </select>
+
+  <button (click)="create()" [disabled]="!canWrite">Add</button>
+
+  <p *ngIf="!canWrite">You are VIEWER (read-only).</p>
+
+  <h3>Filter:</h3>
+  <select [(ngModel)]="categoryFilter" (change)="loadTasks()">
+    <option value="">Category</option>
+    <option value="WORK">WORK</option>
+    <option value="PERSONAL">PERSONAL</option>
+    <option value="STUDY">STUDY</option>
+    <option value="OTHER">OTHER</option>
+  </select>
+
+  <select [(ngModel)]="statusFilter" (change)="loadTasks()">
+    <option value="">Status</option>
+    <option value="TODO">TODO</option>
+    <option value="IN_PROGRESS">IN_PROGRESS</option>
+    <option value="DONE">DONE</option>
+  </select>
+
+  <select [(ngModel)]="sort" (change)="loadTasks()">
+    <option value="NEWEST">Newest</option>
+    <option value="OLDEST">Oldest</option>
+  </select>
+
+  <div *ngIf="error" style="color: red">{{ error }}</div>
+  <div *ngIf="loading">Loading...</div>
+
+  <div *ngIf="tasks.length">
+    <div *ngFor="let t of tasks" style="border:1px solid #ddd; padding:8px; margin:6px 0;">
+      <b>{{ t.title }}</b>
+      <div *ngIf="t.description">{{ t.description }}</div>
+      <div>{{ t.category }} • {{ t.status }}</div>
+
+      <button (click)="markDone(t)" [disabled]="!canWrite">Done</button>
+      <button (click)="remove(t)" [disabled]="!canWrite">Delete</button>
+    </div>
+  </div>
+
+  <div *ngIf="!tasks.length && !loading">No tasks yet.</div>
+</div>
