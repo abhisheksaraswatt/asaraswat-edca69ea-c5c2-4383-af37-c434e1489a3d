@@ -2,180 +2,216 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
-/** ✅ Types expected by TasksComponent imports */
 export type TaskStatus = 'TODO' | 'IN_PROGRESS' | 'DONE';
-export type TaskCategory = 'WORK' | 'PERSONAL' | 'STUDY' | 'OTHER';
+export type TaskCategory = 'WORK' | 'PERSONAL' | 'OTHER';
 
 export interface Task {
   id: string;
-  orgId: string;
   title: string;
   description?: string | null;
   status: TaskStatus;
   category: TaskCategory;
+  order?: number;
   createdAt?: string;
   updatedAt?: string;
 }
 
-/** Auth payloads */
-export type LoginResponse = {
-  accessToken: string;
-  orgId?: string;
-  user?: any;
+type ListTasksParams = {
+  orgId: string;
+  category?: TaskCategory;
+  status?: TaskStatus;
+};
+
+type CreateTaskParams = {
+  orgId: string;
+  title: string;
+  description?: string | null;
+  category?: TaskCategory;
+  status?: TaskStatus;
 };
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
-  // IMPORTANT:
-  // backend base (no /api at end). We'll build endpoints explicitly below.
-  private base = 'http://localhost:3000';
+  private baseUrl = 'http://localhost:3000';
 
-  constructor(private http: HttpClient) {}
+  // ✅ TasksComponent expects these to exist
+  token: string | null = null;
+  orgId: string | null = null;
 
-  // ✅ token stored for refresh persistence
-  get token(): string | null {
-    return localStorage.getItem('accessToken');
-  }
-  set token(value: string | null) {
-    if (value) localStorage.setItem('accessToken', value);
-    else localStorage.removeItem('accessToken');
+  constructor(private http: HttpClient) {
+    // restore from localStorage if present
+    this.token = localStorage.getItem('accessToken');
+    this.orgId = localStorage.getItem('orgId');
   }
 
-  // ✅ orgId stored for refresh persistence
-  get orgId(): string | null {
-    return localStorage.getItem('orgId');
-  }
-  set orgId(value: string | null) {
-    if (value) localStorage.setItem('orgId', value);
-    else localStorage.removeItem('orgId');
+  // ---------- auth helpers ----------
+  private headers(): HttpHeaders {
+    const t = this.token ?? localStorage.getItem('accessToken');
+    if (!t) return new HttpHeaders({ 'Content-Type': 'application/json' });
+
+    return new HttpHeaders({
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${t}`,
+    });
   }
 
-  private authHeaders(): HttpHeaders {
-    let headers = new HttpHeaders({ 'Content-Type': 'application/json' });
-    if (this.token) headers = headers.set('Authorization', `Bearer ${this.token}`);
-    return headers;
+  setSession(token: string, orgId?: string | null) {
+    this.token = token;
+    localStorage.setItem('accessToken', token);
+
+    if (orgId !== undefined) {
+      this.orgId = orgId;
+      if (orgId) localStorage.setItem('orgId', orgId);
+      else localStorage.removeItem('orgId');
+    }
   }
 
-  /** ✅ used by template (click)="api.logout()" */
   logout() {
     this.token = null;
     this.orgId = null;
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('orgId');
+    localStorage.removeItem('role');
   }
 
-  /** ✅ used by LoginComponent */
-  async login(email: string, password: string): Promise<LoginResponse> {
-    const url = `${this.base}/api/auth/login`;
+  // ---------- RBAC / role ----------
+  // TasksComponent calls: await api.getMyRole(this.orgId)
+  async getMyRole(orgId: string): Promise<'OWNER' | 'ADMIN' | 'VIEWER' | 'UNKNOWN'> {
+    // Try a few likely endpoints — whichever exists in your backend
+    const candidates = [
+      `${this.baseUrl}/api/rbac/me`,
+      `${this.baseUrl}/api/auth/me`,
+      `${this.baseUrl}/api/me`,
+      `${this.baseUrl}/api/rbac/context`,
+    ];
 
-    const res = await firstValueFrom(
-      this.http.post<LoginResponse>(url, { email, password }, { headers: this.authHeaders() })
-    );
+    for (const url of candidates) {
+      try {
+        const resp: any = await firstValueFrom(this.http.get(url, { headers: this.headers() }));
+        const role =
+          resp?.['role'] ??
+          resp?.['membership']?.['role'] ??
+          resp?.['data']?.['role'] ??
+          null;
 
-    if (!res?.accessToken) throw new Error('Login failed: missing accessToken');
+        // optionally store role
+        if (role) localStorage.setItem('role', role);
 
-    this.token = res.accessToken;
+        return (role ?? 'UNKNOWN') as any;
+      } catch {
+        // try next
+      }
+    }
 
-    // If backend returns orgId, store it; otherwise keep existing if present
-    if (res.orgId) this.orgId = res.orgId;
-
-    return res;
+    return 'UNKNOWN';
   }
 
-  /** ✅ Resolve current user role for an org */
-  async getMyRole(orgId: string): Promise<string> {
-    // Common pattern: GET /api/rbac/my-role?orgId=...
-    // If your backend is different, this is the ONLY place to change.
-    const url = `${this.base}/api/rbac/my-role?orgId=${encodeURIComponent(orgId)}`;
+  // ---------- tasks ----------
+  // TasksComponent calls: const res = await api.listTasks({orgId, category, status})
+  async listTasks(params: ListTasksParams): Promise<Task[]> {
+    const qs = new URLSearchParams();
+    if (params.category) qs.set('category', params.category);
+    if (params.status) qs.set('status', params.status);
 
-    const res = await firstValueFrom(
-      this.http.get<{ role?: string } | string>(url, { headers: this.authHeaders() })
-    );
+    // Try common task endpoints
+    const candidates = [
+      // recommended REST
+      `${this.baseUrl}/api/orgs/${params.orgId}/tasks?${qs.toString()}`,
+      // some repos use /api/tasks?orgId=...
+      `${this.baseUrl}/api/tasks?orgId=${encodeURIComponent(params.orgId)}&${qs.toString()}`,
+      // or /api/org/{orgId}/tasks
+      `${this.baseUrl}/api/org/${params.orgId}/tasks?${qs.toString()}`,
+    ];
 
-    if (typeof res === 'string') return res;
-    return res?.role ?? 'UNKNOWN';
+    let lastErr: any;
+
+    for (const url of candidates) {
+      try {
+        const res: any = await firstValueFrom(this.http.get(url, { headers: this.headers() }));
+        // allow either {items:[]} or [] responses
+        return (res?.['items'] ?? res) as Task[];
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+
+    // Surface last error if needed
+    throw lastErr ?? new Error('Failed to list tasks');
   }
 
-  /** ✅ List tasks (TasksComponent passes an object) */
-  async listTasks(params?: {
-    orgId?: string;
-    status?: TaskStatus;
-    category?: TaskCategory;
-    q?: string;
-  }): Promise<Task[]> {
-    const orgId = params?.orgId || this.orgId;
-    if (!orgId) throw new Error('orgId is required to list tasks');
+  // TasksComponent calls: await api.createTask({orgId, title,...})
+  async createTask(payload: CreateTaskParams): Promise<Task> {
+    const body = {
+      title: payload.title,
+      description: payload.description ?? null,
+      category: payload.category ?? 'OTHER',
+      status: payload.status ?? 'TODO',
+    };
 
-    const search = new URLSearchParams();
-    search.set('orgId', orgId);
-    if (params?.status) search.set('status', params.status);
-    if (params?.category) search.set('category', params.category);
-    if (params?.q) search.set('q', params.q);
+    const candidates = [
+      `${this.baseUrl}/api/orgs/${payload.orgId}/tasks`,
+      `${this.baseUrl}/api/org/${payload.orgId}/tasks`,
+      `${this.baseUrl}/api/tasks`,
+    ];
 
-    // ✅ Your API supports GET /orgs/:orgId/tasks (controller you showed)
-    // That route does NOT include /api prefix.
-    const url = `${this.base}/orgs/${orgId}/tasks?${search.toString()}`;
+    let lastErr: any;
 
-    const res = await firstValueFrom(
-      this.http.get<Task[]>(url, { headers: this.authHeaders() })
-    );
+    for (const url of candidates) {
+      try {
+        const res: any = await firstValueFrom(
+          this.http.post(url, body, { headers: this.headers() })
+        );
+        return res as Task;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
 
-    return res ?? [];
+    throw lastErr ?? new Error('Failed to create task');
   }
 
-  /** ✅ Create task (TasksComponent calls createTask(payload) with ONE arg) */
-  async createTask(payload: {
-    title: string;
-    description?: string;
-    category?: TaskCategory;
-    status?: TaskStatus;
-    orgId?: string;
-  }): Promise<Task> {
-    const orgId = payload.orgId || this.orgId;
-    if (!orgId) throw new Error('orgId is required to create task');
+  // optional helpers (if your tasks component uses them later)
+  async updateTask(orgId: string, taskId: string, patch: Partial<Task>): Promise<Task> {
+    const candidates = [
+      `${this.baseUrl}/api/orgs/${orgId}/tasks/${taskId}`,
+      `${this.baseUrl}/api/org/${orgId}/tasks/${taskId}`,
+      `${this.baseUrl}/api/tasks/${taskId}`,
+    ];
 
-    // ✅ Your alias controller is @Controller('api/tasks') and has @Post()
-    // So the POST route is: POST /api/tasks?orgId=...
-    const url = `${this.base}/api/tasks?orgId=${encodeURIComponent(orgId)}`;
+    let lastErr: any;
 
-    const res = await firstValueFrom(
-      this.http.post<Task>(
-        url,
-        {
-          title: payload.title,
-          description: payload.description,
-          category: payload.category,
-          status: payload.status,
-        },
-        { headers: this.authHeaders() }
-      )
-    );
+    for (const url of candidates) {
+      try {
+        const res: any = await firstValueFrom(
+          this.http.patch(url, patch, { headers: this.headers() })
+        );
+        return res as Task;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
 
-    if (!res?.id) throw new Error('Create task failed');
-    return res;
+    throw lastErr ?? new Error('Failed to update task');
   }
 
-  /** ✅ Update task (TasksComponent calls updateTask(orgId, id, payload)) */
-  async updateTask(orgId: string, id: string, payload: Partial<Omit<Task, 'id'>>): Promise<Task> {
-    if (!orgId) throw new Error('orgId is required to update task');
+  async deleteTask(orgId: string, taskId: string): Promise<void> {
+    const candidates = [
+      `${this.baseUrl}/api/orgs/${orgId}/tasks/${taskId}`,
+      `${this.baseUrl}/api/org/${orgId}/tasks/${taskId}`,
+      `${this.baseUrl}/api/tasks/${taskId}`,
+    ];
 
-    // ✅ Alias controller uses PUT /api/tasks/:id?orgId=...
-    const url = `${this.base}/api/tasks/${encodeURIComponent(id)}?orgId=${encodeURIComponent(orgId)}`;
+    let lastErr: any;
 
-    const res = await firstValueFrom(
-      this.http.put<Task>(url, payload, { headers: this.authHeaders() })
-    );
+    for (const url of candidates) {
+      try {
+        await firstValueFrom(this.http.delete(url, { headers: this.headers() }));
+        return;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
 
-    if (!res?.id) throw new Error('Update task failed');
-    return res;
-  }
-
-  /** ✅ Delete task (TasksComponent calls deleteTask(orgId, id)) */
-  async deleteTask(orgId: string, id: string): Promise<void> {
-    if (!orgId) throw new Error('orgId is required to delete task');
-
-    const url = `${this.base}/api/tasks/${encodeURIComponent(id)}?orgId=${encodeURIComponent(orgId)}`;
-
-    await firstValueFrom(
-      this.http.delete(url, { headers: this.authHeaders() })
-    );
+    throw lastErr ?? new Error('Failed to delete task');
   }
 }

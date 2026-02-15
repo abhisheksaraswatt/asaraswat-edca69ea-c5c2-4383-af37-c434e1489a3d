@@ -5,7 +5,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
-import { AuthService, AppRole } from '../../services/auth.service';
+import { AuthService, AppRole } from '../../core/auth.service';
 import { friendlyHttpError } from '../../utils/http-error';
 
 type AuditLogItem = {
